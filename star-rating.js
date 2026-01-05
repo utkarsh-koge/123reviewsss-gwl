@@ -420,16 +420,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // Custom Validation for Whitespace
-            const nameVal = (formData.get('name') || '').toString().trim();
-            const emailVal = (formData.get('email') || '').toString().trim();
-            const contentVal = (formData.get('content') || '').toString().trim();
-
-            if (nameVal.length === 0 || emailVal.length === 0 || contentVal.length === 0) {
-                alert('Please fill in all required fields. Fields cannot contain only spaces.');
-                return;
-            }
-
             submitBtn.disabled = true;
             submitBtn.textContent = 'Submitting...';
 
