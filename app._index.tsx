@@ -196,16 +196,10 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
         return json({ success: false, error: 'File is empty or invalid' }, { status: 400 });
       }
 
-      // Normalize headers: trim and lowercase for comparison
-      const fileHeaders = (rawData[0] as string[]).map(h => h?.trim());
-      const fileHeadersLower = fileHeaders.map(h => h?.toLowerCase());
-
+      const headers = (rawData[0] as string[]).map(h => h?.trim());
       const requiredHeaders = ['Product ID', 'Rating', 'Author', 'Email', 'Title', 'Content', 'Status', 'Created At'];
-      const requiredHeadersLower = requiredHeaders.map(h => h.toLowerCase());
 
-      // Check if all required headers exist in the file
-      const missingHeaders = requiredHeaders.filter((h, i) => !fileHeadersLower.includes(requiredHeadersLower[i]));
-
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
       if (missingHeaders.length > 0) {
         return json({
           success: false,
@@ -213,10 +207,10 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
         }, { status: 400 });
       }
 
-      // Map headers to indices (using original case from file for mapping)
+      // Map headers to indices
       const headerMap: Record<string, number> = {};
-      fileHeaders.forEach((h, i) => {
-        if (h) headerMap[h.toLowerCase()] = i;
+      headers.forEach((h, i) => {
+        headerMap[h] = i;
       });
 
       const importedReviews = [];
@@ -228,8 +222,8 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
         const row = rawData[i] as any[];
         if (!row || row.length === 0) continue;
 
-        const getValue = (headerName: string) => {
-          const idx = headerMap[headerName.toLowerCase()];
+        const getValue = (header: string) => {
+          const idx = headerMap[header];
           return row[idx] !== undefined ? String(row[idx]).trim() : '';
         };
 
@@ -244,7 +238,7 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
           continue;
         }
 
-        const email = getValue('Email').toLowerCase(); // Normalize email
+        const email = getValue('Email');
         const content = getValue('Content');
         const rating = parseInt(getValue('Rating') || '0', 10);
         const author = getValue('Author');
@@ -254,21 +248,12 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
         const createdAt = createdAtStr ? new Date(createdAtStr) : new Date();
 
         // Duplicate Check
-        // Check for existing review with same shop, product, email, and content
         const existingReview = await (db.productReview as any).findFirst({
           where: {
             shop,
             productId,
-            email: {
-              equals: email,
-              mode: 'insensitive' // Case insensitive check
-            },
-            content: {
-              equals: content,
-              // We don't use insensitive here to be strict about content, 
-              // but we could if we wanted to be looser. 
-              // For now, exact content match is safer to avoid false positives.
-            }
+            email,
+            content, // Check content to be sure it's the same review
           }
         });
 
@@ -307,6 +292,11 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
         message += ` Skipped ${duplicateReviews.length} duplicate reviews.`;
       }
 
+      const extraHeaders = headers.filter(h => !requiredHeaders.includes(h));
+      if (extraHeaders.length > 0) {
+        message += ` Warning: Extra columns detected and ignored: ${extraHeaders.join(', ')}`;
+      }
+
       return json({
         success: true,
         message: message,
@@ -315,7 +305,7 @@ gid://shopify/Product/987654321,3,Bob Wilson,bob@example.com,"Average product","
 
     } catch (error) {
       console.error('Import error:', error);
-      return json({ success: false, error: 'Failed to import file. Please ensure it is a valid CSV or Excel file.' }, { status: 500 });
+      return json({ success: false, error: 'Failed to import file' }, { status: 500 });
     }
   }
 
