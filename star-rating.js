@@ -38,7 +38,10 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentAppStarColorDarken = '#E6C200';
 
 
-    fetch('/apps/productreview/api/settings')
+    const shop = starRatingBlock ? starRatingBlock.dataset.shop : null;
+
+    const settingsUrl = shop ? `/apps/productreview/api/settings?shop=${shop}` : '/apps/productreview/api/settings';
+    fetch(settingsUrl)
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -185,7 +188,10 @@ document.addEventListener('DOMContentLoaded', function () {
         reviewsList.innerHTML = `<p class="loading-reviews">Loading reviews...</p>`;
 
         try {
-            const response = await fetch(`/apps/productreview/api/productreview?productId=${productId}`);
+            const shop = starRatingBlock.dataset.shop;
+            const apiUrl = `/apps/productreview/api/productreview?productId=${productId}`;
+            const fetchUrl = shop ? `${apiUrl}&shop=${shop}` : apiUrl;
+            const response = await fetch(fetchUrl);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => null);
@@ -283,20 +289,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    document.querySelectorAll('.close-modal, .modal-overlay, .close-submission-modal, .ok-submission-btn').forEach(element => {
+    document.querySelectorAll('.close-modal, .modal-overlay').forEach(element => {
         element.addEventListener('click', function () {
             const modal = this.closest('.review-form-modal');
-            if (modal) {
+            if (modal && modal.id !== 'submission-message-modal') {
                 modal.style.display = 'none';
                 document.body.style.overflow = '';
-
-                // If it was the submission success modal, reload the page or reviews
-                if (modal.id === 'submission-message-modal') {
-                    window.location.reload();
-                }
             }
         });
     });
+
+    if (okSubmissionBtn) {
+        okSubmissionBtn.addEventListener('click', function () {
+            if (submissionMessageModal) {
+                submissionMessageModal.style.display = 'none';
+                document.body.style.overflow = '';
+                window.location.reload();
+            }
+        });
+    }
 
     document.querySelectorAll('.star-rating-input').forEach(starInputContainer => {
         const labels = starInputContainer.querySelectorAll('label');
@@ -420,11 +431,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            const formData = new FormData(this);
+            const name = formData.get('name');
+            const title = formData.get('title');
+            const content = formData.get('content');
+
+            // Name validation: text only
+            if (!/^[a-zA-Z\s]+$/.test(name)) {
+                alert('Name field must accept text only.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Review';
+                return;
+            }
+
+            // Title validation: text only
+            if (title && !/^[a-zA-Z\s]+$/.test(title)) {
+                alert('Title field must accept text only.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Review';
+                return;
+            }
+
+            // Content validation: text and numbers allowed, but not numbers only
+            if (/^[0-9\s]+$/.test(content)) {
+                alert('Review Description must accept text and may include numbers only when combined with text. Submitting a review description that contains only numbers is not allowed.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Review';
+                return;
+            }
+
             submitBtn.disabled = true;
             submitBtn.textContent = 'Submitting...';
 
             try {
-                const formData = new FormData(this);
 
                 // Parallel base64 conversion
                 const base64Promises = selectedFiles.slice(0, MAX_IMAGES_ALLOWED).map(file => {
@@ -437,7 +476,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
                 const base64Images = await Promise.all(base64Promises);
 
-                const response = await fetch('/apps/productreview/api/productreview', {
+                const shop = starRatingBlock.dataset.shop;
+                const apiUrl = '/apps/productreview/api/productreview';
+                const fetchUrl = shop ? `${apiUrl}?shop=${shop}` : apiUrl;
+                const response = await fetch(fetchUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -479,9 +521,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Reset form
                 this.reset();
                 selectedFiles = [];
-                // renderPreview(); // Removed undefined function call
-                form.reset();
-                selectedFiles = [];
                 renderImagePreviews();
                 loadReviews();
 
@@ -509,27 +548,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    if (closeSubmissionModalBtn) {
-        closeSubmissionModalBtn.addEventListener('click', function () {
-            if (submissionMessageModal) {
-                submissionMessageModal.style.display = 'none';
-                document.body.overflow = '';
-            }
-        });
-    }
-
-    if (okSubmissionBtn) {
-        okSubmissionBtn.addEventListener('click', function () {
-            if (submissionMessageModal) {
-                submissionMessageModal.style.display = 'none';
-                document.body.overflow = '';
-            }
-
-            submissionMessageModal.querySelector('.submission-message-title').textContent = 'Thank you!';
-            submissionMessageModal.querySelector('.submission-message-title').style.color = '#28a745';
-            if (okSubmissionBtn) okSubmissionBtn.style.background = '#007bff';
-        });
-    }
 
 
 });
